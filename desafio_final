@@ -1,0 +1,100 @@
+Create
+Mapear uma exceção, caso dê algum erro de inserção e capturar na controller
+exceção personalizada:
+class InsertionError(Exception):
+    def __init__(self, message="Erro ao inserir dados no banco de dados"):
+        self.message = message
+        super().__init__(self.message)
+          
+Controller:
+          from flask import Flask, request, jsonify
+from datetime import datetime
+
+app = Flask(__name__)
+
+@app.route('/add_product', methods=['POST'])
+def add_product():
+    try:
+        # Supondo que você tenha um método que insira dados no banco de dados
+        insert_data(request.json)
+    except InsertionError as e:
+        return jsonify({"error": str(e)}), 500
+
+def insert_data(data):
+    try:
+        # Lógica para inserir dados no banco de dados
+        pass
+    except Exception as e:
+        raise InsertionError() from e
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+Update
+Modifique o método de patch para retornar uma exceção de Not Found, quando o dado não for encontrado
+a exceção deve ser tratada na controller, pra ser retornada uma mensagem amigável pro usuário
+ao alterar um dado, a data de updated_at deve corresponder ao time atual, permitir modificar updated_at também
+Filtros
+  from flask import Flask, request, jsonify
+from datetime import datetime
+
+app = Flask(__name__)
+
+class NotFoundError(Exception):
+    def __init__(self, message="Dado não encontrado"):
+        self.message = message
+        super().__init__(self.message)
+
+@app.route('/update_product/<int:product_id>', methods=['PATCH'])
+def update_product(product_id):
+    try:
+        product = find_product_by_id(product_id)
+        if not product:
+            raise NotFoundError()
+        
+        data = request.json
+        product.update(data)
+        product['updated_at'] = datetime.utcnow()
+        save_product(product)
+        
+        return jsonify(product)
+    except NotFoundError as e:
+        return jsonify({"error": str(e)}), 404
+
+def find_product_by_id(product_id):
+    # Lógica para encontrar o produto pelo ID
+    pass
+
+def save_product(product):
+    # Lógica para salvar o produto atualizado
+    pass
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+cadastre produtos com preços diferentes
+aplique um filtro de preço, assim: (price > 5000 and price < 8000)
+@app.route('/products', methods=['GET'])
+def get_products():
+    try:
+        min_price = request.args.get('min_price', type=float, default=5000)
+        max_price = request.args.get('max_price', type=float, default=8000)
+        
+        products = find_products_by_price_range(min_price, max_price)
+        return jsonify(products)
+    except Exception as e:
+        return jsonify({"error": "Erro ao buscar produtos"}), 500
+
+def find_products_by_price_range(min_price, max_price):
+    # Lógica para buscar produtos por faixa de preço
+    # Supondo que você tenha uma lista de produtos
+    all_products = [
+        {"id": 1, "name": "Produto 1", "price": 6000},
+        {"id": 2, "name": "Produto 2", "price": 7000},
+        {"id": 3, "name": "Produto 3", "price": 9000}
+    ]
+    
+    return [product for product in all_products if min_price < product['price'] < max_price]
+
+if __name__ == '__main__':
+    app.run(debug=True)
