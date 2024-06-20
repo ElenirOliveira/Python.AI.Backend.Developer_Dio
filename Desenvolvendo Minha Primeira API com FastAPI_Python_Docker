@@ -1,0 +1,111 @@
+Para atender aos seus requisitos, precisamos realizar várias modificações na API utilizando FastAPI e SQLAlchemy. Aqui está uma implementação passo a passo:
+
+Adicionar Query Parameters nos Endpoints
+
+Para o endpoint de "atleta" com os parâmetros nome e cpf
+Customizar a Response do Endpoint
+
+Para o endpoint get all de "atleta" com os campos nome, centro_treinamento e categoria
+Manipular Exceções de Integridade dos Dados
+
+Manipular sqlalchemy.exc.IntegrityError e retornar a mensagem apropriada com o status code 303
+Adicionar Paginação
+
+Utilizar a biblioteca fastapi-pagination para adicionar os parâmetros limit e offset
+Vamos começar com o código:
+from fastapi import FastAPI, HTTPException, Query
+from fastapi_pagination import Page, paginate, add_pagination
+from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+app = FastAPI()
+
+# Configuração do banco de dados
+DATABASE_URL = "sqlite:///./test.db"
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# Definição do modelo
+class Atleta(Base):
+    __tablename__ = "atletas"
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String, index=True)
+    cpf = Column(String, unique=True, index=True)
+    centro_treinamento = Column(String)
+    categoria = Column(String)
+
+Base.metadata.create_all(bind=engine)
+
+# Definição do Pydantic model
+class AtletaBase(BaseModel):
+    nome: str
+    centro_treinamento: str
+    categoria: str
+
+class AtletaCreate(AtletaBase):
+    cpf: str
+
+class AtletaResponse(AtletaBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+@app.post("/atletas/", response_model=AtletaResponse)
+def create_atleta(atleta: AtletaCreate):
+    db = SessionLocal()
+    db_atleta = Atleta(**atleta.dict())
+    try:
+        db.add(db_atleta)
+        db.commit()
+        db.refresh(db_atleta)
+        return db_atleta
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=303, detail=f"Já existe um atleta cadastrado com o cpf: {atleta.cpf}")
+    finally:
+        db.close()
+
+@app.get("/atletas/", response_model=Page[AtletaResponse])
+def get_atletas(nome: str = Query(None), cpf: str = Query(None), limit: int = 10, offset: int = 0):
+    db = SessionLocal()
+    query = db.query(Atleta)
+    
+    if nome:
+        query = query.filter(Atleta.nome == nome)
+    if cpf:
+        query = query.filter(Atleta.cpf == cpf)
+
+    atletas = query.offset(offset).limit(limit).all()
+    return paginate(atletas)
+
+# Adicionar paginação à aplicação FastAPI
+add_pagination(app)
+
+# Endpoint para retornar apenas os campos customizados
+@app.get("/atletas/custom/", response_model=Page[AtletaResponse])
+def get_custom_atletas(limit: int = 10, offset: int = 0):
+    db = SessionLocal()
+    atletas = db.query(Atleta).offset(offset).limit(limit).all()
+    return paginate(atletas)
+Explicação:
+Query Parameters:
+
+Adicionamos parâmetros opcionais nome e cpf no endpoint /atletas/.
+Customizar Response:
+
+Usamos o modelo AtletaResponse que contém apenas os campos necessários nome, centro_treinamento e categoria.
+Manipular Exceções:
+
+Envolvemos a criação de um Atleta com um bloco try-except para capturar IntegrityError e retornar a mensagem apropriada com status code 303.
+Paginação:
+
+Adicionamos a biblioteca fastapi-pagination e configuramos a paginação no endpoint de listagem.
+Isso cobre todos os requisitos que você mencionou. Certifique-se de ter a biblioteca fastapi-pagination instalada:
+pip install fastapi-pagination
+Nota:
+Não se esqueça de ajustar o DATABASE_URL e outros detalhes de configuração do banco de dados conforme necessário. Além disso, para uma aplicação real, considerar o uso de um sistema de configuração mais robusto e a adição de autenticação/autorização conforme necessário.
